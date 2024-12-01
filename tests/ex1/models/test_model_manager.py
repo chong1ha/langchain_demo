@@ -1,5 +1,6 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from io import StringIO
+from unittest.mock import AsyncMock, patch, MagicMock
 from ex1.models.model_manager import ModelManager
 
 
@@ -73,3 +74,30 @@ async def test_get_batch_response_async(MockOpenAI):
     assert responses == ["Mocked response", "Mocked response", "Mocked response"]
     assert mock_instance.abatch.call_count == 1
 # End of test_get_batch_response_async
+
+@patch('ex1.models.model_manager.OpenAI')
+def test_stream_response_sync(MockOpenAI):
+    """
+    스트리밍 동기 응답 처리 확인
+    """
+    # Arrange: OpenAI Mock 처리
+    mock_instance = MockOpenAI.return_value
+    mock_instance.stream_sync.return_value = iter(["Chunk 1", "Chunk 2", "Chunk 3"])
+
+    model_manager = ModelManager()
+
+    # Act: 
+    prompt = "What is the capital of France?"
+    
+    # StringIO를 사용하여 print 내용 캡처
+    with patch("builtins.print") as mock_print:
+        model_manager.stream_response_sync(prompt)
+
+        # Assert: 각 청크 출력 확인
+        mock_print.assert_any_call("Chunk 1", end="", flush=True)
+        mock_print.assert_any_call("Chunk 2", end="", flush=True)
+        mock_print.assert_any_call("Chunk 3", end="", flush=True)
+    
+    # Assert: 호출 횟수 확인
+    mock_instance.stream_sync.assert_called_once_with(prompt)
+# End of test_stream_response_sync

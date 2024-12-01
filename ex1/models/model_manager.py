@@ -16,48 +16,65 @@ class ModelManager:
         """
         동기식 
         """
-        try:
-            # 동기식 호출
-            return self.model.invoke(prompt)
-        except Exception as e:
-            raise ValueError(f"모델에서 응답을 생성하는 동안 오류 발생: {str(e)}")
+        return self._invoke_model(prompt)
         
     async def get_response_async(self, prompt: str) -> str:
         """
         비동기식    
         """
-        try:
-            response = await self.model.ainvoke(prompt)
-            return response
-        except Exception as e:
-            raise ValueError(f"모델에서 응답을 생성하는 동안 오류 발생: {str(e)}")
+        return await self._invoke_model_async(prompt)
         
-    def get_batch_response_sync(self, prompts: list) -> list:
+    def get_batch_response_sync(self, prompts: list[str]) -> list[str]:
         """
         동기식 배치 처리
         """
-        responses = []
-        
-        for prompt in prompts:
-            response = self.get_response_sync(prompt) 
-            responses.append(response)
-            
-        return responses
+        return [self.get_response_sync(prompt) for prompt in prompts]
     
-    async def get_batch_response_async(self, prompts: list) -> list:
+    async def get_batch_response_async(self, prompts: list[str]) -> list[str]:
         """
         비동기식 배치 처리
         """
+        return await self._invoke_batch_async(prompts)
+        
+    def _invoke_model(self, prompt: str) -> str:
+        """
+        내부, 모델 동기 호출 처리
+        """
         try:
-            # 여러 비동기 작업, 병렬 실행
+            return self.model.invoke(prompt)
+        except Exception as e:
+            raise ValueError(f"모델 호출 중 오류 발생: {str(e)}")
+
+    async def _invoke_model_async(self, prompt: str) -> str:
+        """
+        내부, 모델 비동기 호출 처리
+        """
+        try:
+            return await self.model.ainvoke(prompt)
+        except Exception as e:
+            raise ValueError(f"비동기 모델 호출 중 오류 발생: {str(e)}")
+        
+    async def _invoke_batch_async(self, prompts: list[str]) -> list[str]:
+        """
+        내부, 비동기식 배치 호출 처리
+        """
+        try:
             model_async_handler = ModelAsyncHandler()
             
-            responses = await self.model.abatch(
-                inputs=prompts,
-                config={"callbacks": [model_async_handler]}
+            return await self.model.abatch(
+                inputs=prompts, config={"callbacks": [model_async_handler]}
             )
-            
-            return responses
         except Exception as e:
-            raise ValueError(f"배치 응답을 생성하는 동안 오류 발생: {str(e)}")
+            raise ValueError(f"비동기 배치 호출 중 오류 발생: {str(e)}")
+        
+    def stream_response_sync(self, prompt: str) -> None:
+        """
+        스트리밍 응답을 동기적으로 처리
+        """
+        try:
+            for chunk in self.model.stream_sync(prompt):
+                print(chunk, end="", flush=True)
+        except Exception as e:
+            print(f"\n스트림 처리 중 오류 발생: {str(e)}")
+
 # End of ModelManager

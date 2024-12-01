@@ -19,68 +19,62 @@ class LangChainApp:
         self.prompt_template = PromptTemplate("$city에서 가장 유명한 관광지는 무엇인가요?")
         self.model = ModelManager()
 
-    def _get_user_input(self) -> None:
+    def get_city_name(self) -> Optional[str]:
         """
         사용자 입력 처리
         """
-        st.session_state.city_name = st.text_input(
+        city_name = st.text_input(
             "도시 이름을 입력하세요:",
             placeholder="{city}에서 가장 유명한 관광지는 무엇인가요?"
         )
+        return city_name
 
-    def _generate_response(self) -> None:   
+    def generate_response(self, city_name: str) -> Optional[Message]:
         """
-        모델에서 응답메시지 생성
+        모델에서 응답 메시지 생성
         """
-        if st.session_state.city_name:
-            
-            try:
-                prompt = self.prompt_template.generate(city=st.session_state.city_name)
-                answer = self.model.get_response_sync(prompt)
-                answer_time = int(datetime.now().timestamp())
+        try:
+            prompt = self.prompt_template.generate(city=city_name)
+            answer = self.model.get_response_sync(prompt)
+            answer_time = int(datetime.now().timestamp())
 
-                # 응답 메시지 생성
-                st.session_state.response = Message(
-                    time=answer_time,
-                    subject=prompt,
-                    body=answer.strip()
-                )
-                st.session_state.generated = True
-                st.write("응답이 생성되었습니다.")
-            except Exception as e:
-                st.error(f"응답 생성 중 오류 발생: {str(e)}")
-        else:
-            st.error("도시 이름을 입력해주세요.")
+            # 응답 메시지 생성
+            return Message(
+                time=answer_time,
+                subject=prompt,
+                body=answer.strip()
+            )
+        except Exception as e:
+            st.error(f"응답 생성 중 오류 발생: {str(e)}")
+            return None
 
-    def _display_response(self):
+    def display_response(self, response: Message):
         """
         응답에 대한 형식별 출력 (화면 출력)
         """
-        if 'response' in st.session_state and st.session_state.response:
-            
-            try:
-                output_format = st.radio(
-                    "응답 형식 선택:",
-                    ("JSON", "Text", "DataFrame"),
-                    key="output_format",
-                    help="응답 형식을 선택하세요.",
-                    horizontal=True
-                )
+        try:
+            output_format = st.radio(
+                "응답 형식 선택:",
+                ("JSON", "Text", "DataFrame"),
+                key="output_format",
+                help="응답 형식을 선택하세요.",
+                horizontal=True
+            )
 
-                # 응답 형식에 따른 처리
-                if output_format == "JSON":
-                    parsed_response = OutputParser.to_json(st.session_state.response)
-                    st.json(parsed_response)
-                elif output_format == "DataFrame":
-                    parsed_response = OutputParser.to_dataframe(st.session_state.response)
-                    if isinstance(parsed_response, pd.DataFrame):
-                        st.dataframe(parsed_response)
-                    else:
-                        st.write("응답을 DataFrame으로 변환 실패:", parsed_response)
+            # 응답 형식에 따른 처리
+            if output_format == "JSON":
+                parsed_response = OutputParser.to_json(response)
+                st.json(parsed_response)
+            elif output_format == "DataFrame":
+                parsed_response = OutputParser.to_dataframe(response)
+                if isinstance(parsed_response, pd.DataFrame):
+                    st.dataframe(parsed_response)
                 else:
-                    st.text_area("응답 (Text 형식):", OutputParser.to_text(st.session_state.response), height=200)
-            except Exception as e:
-                st.error(f"응답 표시 중 오류 발생: {str(e)}")
+                    st.write("응답을 DataFrame으로 변환 실패:", parsed_response)
+            else:
+                st.text_area("응답 (Text 형식):", OutputParser.to_text(response), height=200)
+        except Exception as e:
+            st.error(f"응답 표시 중 오류 발생: {str(e)}")
 # End of LangChainApp
 
 def initialize_session() -> None:
@@ -104,15 +98,22 @@ def main() -> None:
 
     # 사용자 입력
     app = LangChainApp()
-    app._get_user_input()
+    city_name = app.get_city_name()
 
     # 질문 버튼 클릭 시, 응답 처리
     if st.button("질문하기"):
-        app._generate_response()
+        if city_name:
+            response = app.generate_response(city_name)
+            if response:
+                st.session_state.response = response
+                st.session_state.generated = True
+                st.write("응답이 생성되었습니다.")
+        else:
+            st.error("도시 이름을 입력해주세요.")
 
     # 화면에 응답 출력
-    if st.session_state.generated:
-        app._display_response()
+    if st.session_state.generated and st.session_state.response:
+        app.display_response(st.session_state.response)
 
 
 if __name__ == "__main__":
