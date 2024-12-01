@@ -28,7 +28,7 @@ class LangChainApp:
             placeholder="{city}에서 가장 유명한 관광지는 무엇인가요?"
         )
 
-    def _generate_response(self) -> None:
+    def _generate_response(self) -> None:   
         """
         모델에서 응답메시지 생성
         """
