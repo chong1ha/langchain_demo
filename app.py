@@ -36,7 +36,7 @@ class LangChainApp:
             
             try:
                 prompt = self.prompt_template.generate(city=st.session_state.city_name)
-                answer = self.model.get_response(prompt)
+                answer = self.model.get_response_sync(prompt)
                 answer_time = int(datetime.now().timestamp())
 
                 # 응답 메시지 생성
