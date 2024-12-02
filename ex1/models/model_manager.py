@@ -3,6 +3,24 @@ from langchain_community.callbacks import get_openai_callback
 from core.utils.config import Config
 from .model_async_handler import ModelAsyncHandler
 from typing import Dict
+from langchain.globals import set_llm_cache
+from langchain.cache import InMemoryCache
+from langchain.globals import set_debug
+
+
+def init_global_settings():
+    """
+    전역 설정 초기화
+    """
+    try:
+        Config.check_config()
+        set_debug(False)
+        set_llm_cache(InMemoryCache())
+    
+    except Exception as e:
+        raise RuntimeError(e)
+
+init_global_settings()
 
 
 class ModelManager:
@@ -11,8 +29,7 @@ class ModelManager:
     """
 
     def __init__(self):
-        Config.check_config() 
-        self.model = OpenAI(api_key=Config.OPENAI_API_KEY, temperature=0.1)
+        self.model = OpenAI(api_key=Config.OPENAI_API_KEY, temperature=0.0, cache=True)
         
     def get_response(
         self, prompt: str, mode: str = "sync", batch: bool = False, stream: bool = False, meta_info: bool = False

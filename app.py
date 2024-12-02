@@ -40,7 +40,7 @@ class LangChainApp:
                 mode="sync",
                 batch=False,
                 stream=False,
-                meta_info=False
+                meta_info=True
                 )
             
             response = answer["response"].strip()
