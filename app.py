@@ -29,50 +29,69 @@ class LangChainApp:
         )
         return city_name
 
-    def generate_response(self, city_name: str) -> Optional[Message]:
+    def generate_response(self, city_name: str) -> Optional[tuple[Message, dict]]:
         """
         모델에서 응답 메시지 생성
         """
         try:
             prompt = self.prompt_template.generate(city=city_name)
-            answer = self.model.get_response_sync(prompt)
-            answer_time = int(datetime.now().timestamp())
+            answer = self.model.get_response(
+                prompt=prompt,
+                mode="sync",
+                batch=False,
+                stream=False,
+                meta_info=False
+                )
+            
+            response = answer["response"].strip()
+            meta_info = answer["meta_info"]
 
             # 응답 메시지 생성
-            return Message(
-                time=answer_time,
+            message = Message(
+                time=int(datetime.now().timestamp()),
                 subject=prompt,
-                body=answer.strip()
+                body=response
             )
+            return message, meta_info
         except Exception as e:
             st.error(f"응답 생성 중 오류 발생: {str(e)}")
             return None
 
-    def display_response(self, response: Message):
+    def display_response(self, response: Message, meta_info: Optional[dict] = None):
         """
         응답에 대한 형식별 출력 (화면 출력)
         """
         try:
             output_format = st.radio(
                 "응답 형식 선택:",
-                ("JSON", "Text", "DataFrame"),
+                ("JSON", "Text", "DataFrame", "Meta Info"),
                 key="output_format",
                 help="응답 형식을 선택하세요.",
                 horizontal=True
             )
 
             # 응답 형식에 따른 처리
-            if output_format == "JSON":
-                parsed_response = OutputParser.to_json(response)
-                st.json(parsed_response)
-            elif output_format == "DataFrame":
-                parsed_response = OutputParser.to_dataframe(response)
-                if isinstance(parsed_response, pd.DataFrame):
-                    st.dataframe(parsed_response)
+            parser_map = {
+                "JSON": OutputParser.to_json,
+                "Text": OutputParser.to_text,
+                "DataFrame": OutputParser.to_dataframe
+            }
+
+            if output_format == "Meta Info":
+                if meta_info:
+                    st.subheader("메타정보")
+                    st.json(meta_info)
                 else:
-                    st.write("응답을 DataFrame으로 변환 실패:", parsed_response)
+                    st.warning("메타정보가 없습니다.")
             else:
-                st.text_area("응답 (Text 형식):", OutputParser.to_text(response), height=200)
+                parsed_response = parser_map[output_format](response)
+
+                if output_format == "DataFrame" and isinstance(parsed_response, pd.DataFrame):
+                    st.dataframe(parsed_response)
+                elif output_format == "JSON":
+                    st.json(parsed_response)
+                else:
+                    st.text_area("응답 (Text 형식):", parsed_response, height=200)
         except Exception as e:
             st.error(f"응답 표시 중 오류 발생: {str(e)}")
 # End of LangChainApp
@@ -103,9 +122,10 @@ def main() -> None:
     # 질문 버튼 클릭 시, 응답 처리
     if st.button("질문하기"):
         if city_name:
-            response = app.generate_response(city_name)
+            response, meta_info = app.generate_response(city_name)
             if response:
                 st.session_state.response = response
+                st.session_state.meta_info = meta_info
                 st.session_state.generated = True
                 st.write("응답이 생성되었습니다.")
         else:
@@ -113,7 +133,7 @@ def main() -> None:
 
     # 화면에 응답 출력
     if st.session_state.generated and st.session_state.response:
-        app.display_response(st.session_state.response)
+        app.display_response(st.session_state.response, st.session_state.get("meta_info"))
 
 
 if __name__ == "__main__":
