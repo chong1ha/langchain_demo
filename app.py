@@ -4,11 +4,14 @@ from datetime import datetime
 from typing import Optional
 
 from core.utils.message import Message
+from core.utils.config import Config
 from ex1.prompts.templates import PromptTemplate
 from ex1.models.model_manager import ModelManager
 from ex1.parsers.parser import OutputParser
 from ex1.utils.bootstrap import add_bootstrap
 
+
+Config.init(use_redis_cache=True) 
 
 class LangChainApp:
     """
