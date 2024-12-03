@@ -1,7 +1,42 @@
 from langchain_community.llms import OpenAI
 from langchain_community.callbacks import get_openai_callback
-from core.utils.config import Config, get_cache_key
+from core.utils.config import Config
 from .model_async_handler import ModelAsyncHandler
+from langchain.globals import set_llm_cache, set_debug
+from langchain_community.cache import RedisCache, InMemoryCache, RedisSemanticCache
+from langchain.embeddings import OpenAIEmbeddings
+from redis import Redis
+
+
+def init_global_settings(use_redis_cache=False):
+    """
+    전역 설정 초기화
+    """
+    try:
+        Config.check_required_config()
+        
+        if use_redis_cache and Config.REDIS_URL:
+            # Config.LLM_CACHE = RedisSemanticCache(
+            #     redis_url=Config.REDIS_URL, 
+            #     embedding=OpenAIEmbeddings()
+            # )
+            Config.LLM_CACHE = RedisCache(
+                redis_= Redis(
+                    host="localhost",
+                    port=6379,
+                    password="redis"
+                )
+            )
+        else:
+            Config.LLM_CACHE = InMemoryCache()
+    
+        set_debug(False)
+        set_llm_cache(Config.LLM_CACHE)
+    
+    except Exception as e:
+        raise RuntimeError(e)
+
+init_global_settings(use_redis_cache=True)
 
 
 class ModelManager:
@@ -10,12 +45,12 @@ class ModelManager:
     """
 
     def __init__(self):
-        self.cache = Config.LLM_CACHE
-        self.debug = Config.DEBUG
         self.model = OpenAI(api_key=Config.OPENAI_API_KEY, temperature=0.0, top_p=1.0, cache=True)
         
     def get_response(
         self, 
+        # temperature: 모델 출력의 창의성, 무작위성 조정 (확률분포의 분산 조절)
+        # top_p: 누적확률샘플링 기반, 모델이 단어를 선택할 확률 범위 제한
         prompt: str, temperature: float = 0.0, top_p: float = 1.0, 
         mode: str = "sync", batch: bool = False, stream: bool = False, meta_info: bool = False
     ):
@@ -28,21 +63,7 @@ class ModelManager:
         :param stream: True는 스트리밍 처리
         :param meta_info: True는 응답 + 메타정보
         """
-        try:
-            # 캐시 키 생성 및 응답 반환
-            cache_key = get_cache_key(prompt, temperature, top_p)
-            
-            # 캐시에서 응답 가져오기
-            cached_response = self.cache.get(cache_key)
-            print("111111")
-            if cached_response:
-                print("222222")
-                
-                if meta_info:
-                    return {"response": cached_response, "meta_info": {"source": "cache"}}
- 
-                return {"response": cached_response, "meta_info": ""}
-            
+        try:            
             with get_openai_callback() as callback:
                 
                 if batch:
@@ -59,9 +80,6 @@ class ModelManager:
                     elif mode == "async":
                         response = self.get_response_async(prompt)
                 
-                # 캐시 저장
-                self.cache.set(cache_key, response)
-
                 if meta_info:
                     meta = self._get_meta_info(callback)
                     return {"response": response, "meta_info": meta}
